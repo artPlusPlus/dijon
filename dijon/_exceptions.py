@@ -1,0 +1,2 @@
+class DijonError(Exception):
+    pass
