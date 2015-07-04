@@ -1,4 +1,4 @@
 dijon
 =====
 
-dijon computes differences between JSON data structures.
+dijon is a library for comparing and merging JSON data structures.
