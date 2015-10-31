@@ -8,7 +8,7 @@ from ._differences import (SequenceItemAddition,
 
 def compare(source, target):
     """
-    compare finds the differences between two JSON structures.
+    compare identifies differences between two JSON structures.
 
     :param source: The "left" side of the comparison
     :param target: The "right" side of the comparison
