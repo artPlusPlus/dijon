@@ -1,66 +1,120 @@
-from ._differences import (ObjectFieldAddition,
-                           ObjectFieldDeletion,
-                           ObjectFieldModification)
-from ._differences import (SequenceItemAddition,
-                           SequenceItemDeletion,
-                           SequenceItemModification)
+import logging
+
+from ._graph import Graph
+import _nodes
 
 
-def compare(source, target):
+_logger = logging.getLogger(__name__)
+
+
+def compare(source_data, target_data):
     """
     compare identifies differences between two JSON structures.
 
-    :param source: The "left" side of the comparison
-    :param target: The "right" side of the comparison
+    :param source_data: The "left" side of the comparison
+    :param target_data: The "right" side of the comparison
     :return: Returns a list of ```Difference``` instances.
     """
-    differences = []
+    _logger.debug('begin compare')
+
+    result = Graph()
+
+    source = Graph()
+    source.parse(source_data)
+
+    target = Graph()
+    target.parse(target_data)
+
     source = source
     target = target
 
     try:
-        _compare_object(differences, ['root'], source, target)
+        result.root = _compare_object(source.root, target.root)
     except TypeError:
-        _compare_sequence(differences, ['root'], source, target)
+        result.root = _compare_sequence(source.root, target.root)
 
-    return differences
+    _logger.debug('end compare')
+    return result
 
 
-def _compare_object(diffs, path, source, target):
-    for field in source:
-        src_path = path[:]
-        src_path.append(field)
-        src_value = source[field]
-
-        tgt_path = path[:]
-        tgt_path.append(field)
-
+def _compare_object(source, target):
+    result = _nodes.Object(source.path, source.data)
+    for src_field in source:
         try:
-            tgt_value = target[field]
-            _compare_object(diffs, src_path, src_value, tgt_value)
+            tgt_field = target[src_field.path]
         except KeyError:
-            diff = ObjectFieldDeletion(src_path, src_value)
-            diffs.append(diff)
+            result_field = _nodes.ObjectFieldDeletion(src_field)
+            result[src_field.path] = result_field
             continue
+
+        result_field = _nodes.ObjectField(tgt_field.path, tgt_field.data)
+        try:
+            result_field.value = _compare_object(src_field, tgt_field)
         except TypeError:
             try:
-                _compare_sequence(diffs, src_path, src_value, tgt_value)
+                result_field.value = _compare_sequence(src_field, tgt_field)
             except TypeError:
-                if src_value != tgt_value:
-                    diff = ObjectFieldModification(src_path, src_value, tgt_path, tgt_value)
-                    diffs.append(diff)
+                if src_field.value == tgt_field.value:
+                    result_field.value = tgt_field.value
+                else:
+                    result_field = _nodes.ObjectFieldModification(src_field, tgt_field)
+        result[result_field.path] = result_field
 
-    for field in target:
-        if field in source:
+    for tgt_field in target:
+        if tgt_field.path in result:
             continue
-        tgt_path = path[:]
-        tgt_path.append(field)
-        tgt_value = target[field]
-        diff = ObjectFieldAddition(tgt_path, tgt_value)
-        diffs.append(diff)
+        result_field = _nodes.ObjectFieldAddition(tgt_field)
+        result[tgt_field.path] = result_field
+
+    return result
 
 
-def _compare_sequence(diffs, path, source, target, match_threshold=0.1):
+def _compare_sequence(source, target, match_threshold=0.1):
+    if isinstance(source, basestring):
+        raise TypeError('Unsupported source type: basestring')
+    elif isinstance(target, basestring):
+        raise TypeError('Unsupported target type: basestring')
+
+    result = _nodes.Sequence(source.path, source.data)
+
+    match_data = _compute_sequence_item_matches(source, target)
+    matched_src_indices = []
+    matched_tgt_indices = []
+
+    for src_idx, tgt_idx, match_hits, match_misses in match_data:
+        src_item = source.items[src_idx]
+        tgt_item = target.items[tgt_idx]
+
+        if match_hits / (match_hits + match_misses) < match_threshold:
+            result_item = _nodes.SequenceItemDeletion(src_item)
+            result.items.append(result_item)
+
+            result_item = _nodes.SequenceItemAddition(tgt_item)
+            result.items.append(result_item)
+            continue
+
+        # At this point, src_item and tgt_item are considered a match
+        if src_item.path == tgt_item.path:
+            result_item = _nodes.SequenceItem(tgt_item.path, tgt_item.data)
+            result.items.append(result_item)
+        else:
+            result_item = _nodes.SequenceItemModification(src_item, tgt_item)
+            result.items.append(result_item)
+
+        try:
+            result_item.value = _compare_object(src_item, tgt_item)
+        except TypeError:
+            try:
+                result_item.value = _compare_sequence(src_item, tgt_item)
+            except TypeError:
+                if src_item.value == tgt_item.value:
+                    result_item = _nodes.SequenceItem(tgt_item.path, tgt_item.data)
+                else:
+                    msg = ''
+                    raise RuntimeError()
+
+
+def _compare_sequence_old(diffs, path, source, target, match_threshold=0.1):
     if isinstance(source, basestring):
         raise TypeError('Unsupported source type: basestring')
     elif isinstance(target, basestring):
@@ -149,14 +203,13 @@ def _compute_sequence_item_match_candidates(item, candidates):
 def _compute_sequence_item_matches(source, target):
     result = []
 
-    rng = len(source) if len(source) < len(target) else len(target)
-
     match_candidates = {}
     for src_idx, src in enumerate(source):
         tgt_candidates = _compute_sequence_item_match_candidates(src, target)
         match_candidates[src_idx] = tgt_candidates
 
     matches = {}
+    rng = len(source) if len(source) < len(target) else len(target)
     while len(matches) < rng and match_candidates:
         round_picks = []
         for src_idx, tgt_candidates in match_candidates.iteritems():
