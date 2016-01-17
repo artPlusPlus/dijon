@@ -13,7 +13,7 @@ def compare(source_data, target_data):
 
     :param source_data: The "left" side of the comparison
     :param target_data: The "right" side of the comparison
-    :return: Returns a list of ```Difference``` instances.
+    :return: Returns a graph
     """
     _logger.debug('begin compare')
 
@@ -38,15 +38,26 @@ def compare(source_data, target_data):
 
 
 def _compare_object(source, target):
-    result = _nodes.Object(source.path, source.data)
+    result = _nodes.Object(target.path, target.data)
+    field_pairs = set()
+
     for src_field in source:
         try:
             tgt_field = target[src_field.path]
+            field_pairs.add((src_field, tgt_field))
         except KeyError:
             result_field = _nodes.ObjectFieldDeletion(src_field)
             result[src_field.path] = result_field
-            continue
 
+    for tgt_field in target:
+        try:
+            src_field = source[tgt_field.path]
+            field_pairs.add((src_field, tgt_field))
+        except KeyError:
+            result_field = _nodes.ObjectFieldAddition(tgt_field)
+            result[tgt_field.path] = result_field
+
+    for src_field, tgt_field in field_pairs:
         result_field = _nodes.ObjectField(tgt_field.path, tgt_field.data)
         try:
             result_field.value = _compare_object(src_field, tgt_field)
@@ -57,14 +68,10 @@ def _compare_object(source, target):
                 if src_field.value == tgt_field.value:
                     result_field.value = tgt_field.value
                 else:
+                    src_field = src_field.copy()
+                    tgt_field = tgt_field.copy()
                     result_field = _nodes.ObjectFieldModification(src_field, tgt_field)
         result[result_field.path] = result_field
-
-    for tgt_field in target:
-        if tgt_field.path in result:
-            continue
-        result_field = _nodes.ObjectFieldAddition(tgt_field)
-        result[tgt_field.path] = result_field
 
     return result
 

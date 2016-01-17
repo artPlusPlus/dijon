@@ -10,7 +10,6 @@ _logger = logging.getLogger(__name__)
 class Graph(object):
     def __init__(self):
         self.root = None
-        self._nodes = []
 
     def parse(self, json_data):
         _logger.debug('begin parse')
