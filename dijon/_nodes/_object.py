@@ -8,6 +8,12 @@ class Object(DataNode):
 
         self._fields = {}
 
+    def keys(self):
+        return self._fields.keys()
+
+    def get(self, field_name, default=None):
+        return self._fields.get(field_name, default)
+
     def __iter__(self):
         for node in self._fields.values():
             yield node

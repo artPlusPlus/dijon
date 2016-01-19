@@ -14,8 +14,7 @@ from ._nodes import (
     ObjectFieldModification,
     SequenceItemAddition,
     SequenceItemDeletion,
-    SequenceItemIndexChanged,
-    SequenceItemValueChanged
+    SequenceItemModification
 )
 
 from ._compare import compare

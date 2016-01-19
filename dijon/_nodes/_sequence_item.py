@@ -11,3 +11,9 @@ class SequenceItem(DataNode):
         super(SequenceItem, self).__init__(path, data)
 
         self.value = None
+
+    def copy(self):
+        result = super(SequenceItem, self).copy()
+        result.value = self.value
+
+        return result

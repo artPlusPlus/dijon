@@ -14,16 +14,8 @@ class DataNode(Node):
         return result
 
     def __repr__(self):
-        full_path = []
-        for item in self.full_path:
-            if isinstance(item, (list, tuple, set)):
-                item = '|'.join(item)
-                item = '[{0}]'.format(item)
-            full_path.append(item)
-        full_path = '.'.join(full_path)
-
-        result = "<{0} {{'path': {1}, 'data': {2}}}>"
+        result = u"<{0} {{'path': {1}, 'data': {2}}}>"
         result = result.format(self.__class__.__name__,
-                               full_path,
+                               self._repr_path(),
                                repr(self.data))
         return result

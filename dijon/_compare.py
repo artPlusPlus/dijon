@@ -1,7 +1,8 @@
 import logging
 
-from ._graph import Graph
 import _nodes
+from ._graph import Graph
+from ._exceptions import ComparisonError
 
 
 _logger = logging.getLogger(__name__)
@@ -30,7 +31,7 @@ def compare(source_data, target_data):
 
     try:
         result.root = _compare_object(source.root, target.root)
-    except TypeError:
+    except ComparisonError:
         result.root = _compare_sequence(source.root, target.root)
 
     _logger.debug('end compare')
@@ -41,19 +42,27 @@ def _compare_object(source, target):
     result = _nodes.Object(target.path, target.data)
     field_pairs = set()
 
-    for src_field in source:
-        try:
-            tgt_field = target[src_field.path]
+    try:
+        all_fields = set()
+        all_fields.update(source.keys())
+        all_fields.update(target.keys())
+    except AttributeError:
+        raise ComparisonError()
+
+    for field_name in all_fields:
+        src_field = source.get(field_name, None)
+        tgt_field = target.get(field_name, None)
+
+        if src_field and tgt_field:
+            src_field = src_field.copy()
+            tgt_field = tgt_field.copy()
             field_pairs.add((src_field, tgt_field))
-        except KeyError:
+        elif src_field:
+            src_field = src_field.copy()
             result_field = _nodes.ObjectFieldDeletion(src_field)
             result[src_field.path] = result_field
-
-    for tgt_field in target:
-        try:
-            src_field = source[tgt_field.path]
-            field_pairs.add((src_field, tgt_field))
-        except KeyError:
+        elif tgt_field:
+            tgt_field = tgt_field.copy()
             result_field = _nodes.ObjectFieldAddition(tgt_field)
             result[tgt_field.path] = result_field
 
@@ -61,7 +70,7 @@ def _compare_object(source, target):
         result_field = _nodes.ObjectField(tgt_field.path, tgt_field.data)
         try:
             result_field.value = _compare_object(src_field, tgt_field)
-        except TypeError:
+        except ComparisonError:
             try:
                 result_field.value = _compare_sequence(src_field, tgt_field)
             except TypeError:
@@ -82,150 +91,193 @@ def _compare_sequence(source, target, match_threshold=0.1):
     elif isinstance(target, basestring):
         raise TypeError('Unsupported target type: basestring')
 
-    result = _nodes.Sequence(source.path, source.data)
+    result = _nodes.Sequence(target.path, target.data)
 
-    match_data = _compute_sequence_item_matches(source, target)
+    match_data = _compute_sequence_item_matches(source.data, target.data)
     matched_src_indices = []
     matched_tgt_indices = []
 
+    # Handle modified Items
     for src_idx, tgt_idx, match_hits, match_misses in match_data:
-        src_item = source.items[src_idx]
-        tgt_item = target.items[tgt_idx]
+        src_item = source[src_idx].copy()
+        tgt_item = target[tgt_idx].copy()
 
+        # Discard the match if average hits is below threshold
         if match_hits / (match_hits + match_misses) < match_threshold:
             result_item = _nodes.SequenceItemDeletion(src_item)
-            result.items.append(result_item)
+            result.append(result_item)
 
             result_item = _nodes.SequenceItemAddition(tgt_item)
-            result.items.append(result_item)
+            result.append(result_item)
             continue
 
         # At this point, src_item and tgt_item are considered a match
-        if src_item.path == tgt_item.path:
-            result_item = _nodes.SequenceItem(tgt_item.path, tgt_item.data)
-            result.items.append(result_item)
-        else:
-            result_item = _nodes.SequenceItemModification(src_item, tgt_item)
-            result.items.append(result_item)
-
-        try:
-            result_item.value = _compare_object(src_item, tgt_item)
-        except TypeError:
-            try:
-                result_item.value = _compare_sequence(src_item, tgt_item)
-            except TypeError:
-                if src_item.value == tgt_item.value:
-                    result_item = _nodes.SequenceItem(tgt_item.path, tgt_item.data)
-                else:
-                    msg = ''
-                    raise RuntimeError()
-
-
-def _compare_sequence_old(diffs, path, source, target, match_threshold=0.1):
-    if isinstance(source, basestring):
-        raise TypeError('Unsupported source type: basestring')
-    elif isinstance(target, basestring):
-        raise TypeError('Unsupported target type: basestring')
-
-    match_data = _compute_sequence_item_matches(source, target)
-    matched_src_indices = []
-    matched_tgt_indices = []
-
-    for src_idx, tgt_idx, match_hits, match_misses in match_data:
-        src_path = path[:]
-        src_path.append(src_idx)
-        src_item = source[src_idx]
-
-        tgt_path = path[:]
-        tgt_path.append(tgt_idx)
-        tgt_item = target[tgt_idx]
-
-        if match_hits / (match_hits + match_misses) < match_threshold:
-            diff = SequenceItemDeletion(src_path, src_item)
-            diffs.append(diff)
-            diff = SequenceItemAddition(tgt_path, tgt_item)
-            diffs.append(diff)
-            continue
-
-        if src_idx != tgt_idx:
-            diff = SequenceItemModification(src_path, src_item, tgt_path, tgt_item)
-            diffs.append(diff)
-
-        try:
-            _compare_object(diffs, src_path, src_item, tgt_item)
-        except TypeError:
-            try:
-                _compare_sequence(diffs, src_path, src_item, tgt_item)
-            except TypeError:
-                if src_item != tgt_item:
-                    # Getting here means the src_item and tgt_item are somewhat equal.
-                    # However, they are also neither sequences nor objects.
-                    diff = SequenceItemDeletion(src_path, src_item)
-                    diffs.append(diff)
-
-                    diff = SequenceItemAddition(tgt_path, tgt_item)
-                    diffs.append(diff)
-
         matched_src_indices.append(src_idx)
         matched_tgt_indices.append(tgt_idx)
 
-    # Identify item deletions
+        try:
+            result_value = _compare_object(src_item, tgt_item)
+        except ComparisonError:
+            try:
+                result_value = _compare_sequence(src_item, tgt_item)
+            except TypeError:
+                result_value = tgt_item.value
+
+        modified = src_item.path != tgt_item.path
+        if not modified:
+            try:
+                modified = [isinstance(n, _nodes.DifferenceNode) for n in result_value]
+                modified = any(modified)
+            except TypeError:
+                modified = src_item.value != tgt_item.value
+
+        if modified:
+            result_item = _nodes.SequenceItemModification(src_item, tgt_item)
+        else:
+            result_item = _nodes.SequenceItem(tgt_item.path, tgt_item.data)
+
+        result_item.value = result_value
+        result.append(result_item)
+
+    # Handle deleted Items
     for src_idx in xrange(0, len(source)):
         if src_idx in matched_src_indices:
             continue
 
-        src_path = path[:]
-        src_path.append(src_idx)
-        src_item = source[src_idx]
+        diff = _nodes.SequenceItemDeletion(source[src_idx].copy())
+        result.append(diff)
 
-        diff = SequenceItemDeletion(src_path, src_item)
-        diffs.append(diff)
-
-    # Identify item additions
+    # Handle added Items
     for tgt_idx in xrange(0, len(target)):
         if tgt_idx in matched_tgt_indices:
             continue
 
-        tgt_path = path[:]
-        tgt_path.append(tgt_idx)
-        tgt_item = target[tgt_idx]
+        diff = _nodes.SequenceItemAddition(target[tgt_idx].copy())
+        result.append(diff)
 
-        diff = SequenceItemAddition(tgt_path, tgt_item)
-        diffs.append(diff)
-
-
-def _compute_sequence_item_match_candidates(item, candidates):
-    result = []
-    for candidate_idx, candidate_value in enumerate(candidates):
-        candidate = _TargetSequenceMatchCandidate()
-        candidate.target_index = candidate_idx
-        candidate.hits, candidate.misses = _compute_value_score(item, candidate_value)
-        result.append(candidate)
-    result.sort()
-    result.reverse()
-    # TODO: Handle candidate_indices with same score
     return result
 
 
-def _compute_sequence_item_matches(source, target):
+# def _compare_sequence_old(diffs, path, source, target, match_threshold=0.1):
+#     if isinstance(source, basestring):
+#         raise TypeError('Unsupported source type: basestring')
+#     elif isinstance(target, basestring):
+#         raise TypeError('Unsupported target type: basestring')
+#
+#     match_data = _compute_sequence_item_matches(source, target)
+#     matched_src_indices = []
+#     matched_tgt_indices = []
+#
+#     for src_idx, tgt_idx, match_hits, match_misses in match_data:
+#         src_path = path[:]
+#         src_path.append(src_idx)
+#         src_item = source[src_idx]
+#
+#         tgt_path = path[:]
+#         tgt_path.append(tgt_idx)
+#         tgt_item = target[tgt_idx]
+#
+#         if match_hits / (match_hits + match_misses) < match_threshold:
+#             diff = SequenceItemDeletion(src_path, src_item)
+#             diffs.append(diff)
+#             diff = SequenceItemAddition(tgt_path, tgt_item)
+#             diffs.append(diff)
+#             continue
+#
+#         if src_idx != tgt_idx:
+#             diff = SequenceItemModification(src_path, src_item, tgt_path, tgt_item)
+#             diffs.append(diff)
+#
+#         try:
+#             _compare_object(diffs, src_path, src_item, tgt_item)
+#         except TypeError:
+#             try:
+#                 _compare_sequence(diffs, src_path, src_item, tgt_item)
+#             except TypeError:
+#                 if src_item != tgt_item:
+#                     # Getting here means the src_item and tgt_item are somewhat equal.
+#                     # However, they are also neither sequences nor objects.
+#                     diff = SequenceItemDeletion(src_path, src_item)
+#                     diffs.append(diff)
+#
+#                     diff = SequenceItemAddition(tgt_path, tgt_item)
+#                     diffs.append(diff)
+#
+#         matched_src_indices.append(src_idx)
+#         matched_tgt_indices.append(tgt_idx)
+#
+#     # Identify item deletions
+#     for src_idx in xrange(0, len(source)):
+#         if src_idx in matched_src_indices:
+#             continue
+#
+#         src_path = path[:]
+#         src_path.append(src_idx)
+#         src_item = source[src_idx]
+#
+#         diff = SequenceItemDeletion(src_path, src_item)
+#         diffs.append(diff)
+#
+#     # Identify item additions
+#     for tgt_idx in xrange(0, len(target)):
+#         if tgt_idx in matched_tgt_indices:
+#             continue
+#
+#         tgt_path = path[:]
+#         tgt_path.append(tgt_idx)
+#         tgt_item = target[tgt_idx]
+#
+#         diff = SequenceItemAddition(tgt_path, tgt_item)
+#         diffs.append(diff)
+
+
+def _compute_sequence_item_matches(source_sequence, target_sequence):
+    """
+    Matches items from a source sequence to similar items in a target sequence.
+
+    :param source_sequence:
+    :param target_sequence:
+    :return:
+    """
     result = []
 
+    len_source = len(source_sequence)
+    len_target = len(target_sequence)
+    num_matches = len_source if len_source < len_target else len_target
+
+    # Rank each target item against each source item.
+    # Each source item will have a list containing all the items in the
+    # target sequence.
     match_candidates = {}
-    for src_idx, src in enumerate(source):
-        tgt_candidates = _compute_sequence_item_match_candidates(src, target)
+    for src_idx, src_item in enumerate(source_sequence):
+        tgt_candidates = _compute_sequence_item_match_candidates(
+                src_item, target_sequence)
         match_candidates[src_idx] = tgt_candidates
 
+    # Compute the best target item match for each source item.
+    # It's possible for multiple source items to be similar the same target
+    # item.
+    # This loop ensures the highest scoring source-target pairs are matched.
     matches = {}
-    rng = len(source) if len(source) < len(target) else len(target)
-    while len(matches) < rng and match_candidates:
+    while len(matches) < num_matches and match_candidates:
+        # Each iteration pops the top-scoring target item for each source item.
         round_picks = []
         for src_idx, tgt_candidates in match_candidates.iteritems():
             round_pick = tgt_candidates.pop(0)
             round_picks.append((round_pick.score, src_idx, round_pick))
+
+        # The picks are sorted so a source-target pair with a higher similarity
+        # is matched before another source-target that shares the same target.
         round_picks.sort()
         round_picks.reverse()
+
+        # Create matches between unclaimed target items and source items.
         for _, src_idx, candidate in round_picks:
             if candidate.target_index in matches:
+                # Target item has already been matched to a higher-scoring
+                # (more similar) source item. The next iteration round will
+                # attempt to match the source item with the next best target
+                # item.
                 continue
             matches[candidate.target_index] = (src_idx, candidate)
             del match_candidates[src_idx]
@@ -236,9 +288,39 @@ def _compute_sequence_item_matches(source, target):
     return result
 
 
-def _compute_value_score(source, target):
+def _compute_sequence_item_match_candidates(source_item, target_items):
     """
-    Calculates a score representing how closely to values match each other.
+    Ranks target items based on similarity to the source item.
+
+    :param source_item:
+    :param target_items:
+    :return:
+    """
+    result = []
+
+    for target_idx, target_item in enumerate(target_items):
+        target_score = _compute_item_similarity(source_item, target_item)
+
+        candidate = _TargetSequenceMatchCandidate()
+        candidate.target_index = target_idx
+        candidate.hits, candidate.misses = target_score
+
+        result.append(candidate)
+
+    result.sort()
+    result.reverse()
+
+    # TODO: Handle candidate_indices with same score
+    return result
+
+
+def _compute_item_similarity(source, target):
+    """
+    Calculates a score representing how closely two values match each other.
+
+    The score is represented by two integers. The first is "hits", or the number
+    if common pieces of data. The second is "misses", or the number of differing
+    pieces of data.
 
     :param source:
     :param target:
@@ -255,7 +337,7 @@ def _compute_value_score(source, target):
 
 def _compute_sequence_score(source, target):
     """
-    Calculates a score representing how closely sequences match each other.
+    Calculates a score representing how closely two sequences match each other.
 
     :param source:
     :param target:
@@ -314,7 +396,7 @@ def _compute_object_score(source, target):
     for key in common_keys:
         hits += 1
 
-        value_hits, value_misses = _compute_value_score(source[key], target[key])
+        value_hits, value_misses = _compute_item_similarity(source[key], target[key])
         hits += value_hits
         misses += value_misses
 

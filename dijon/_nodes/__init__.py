@@ -12,5 +12,4 @@ from ._sequence import Sequence
 from ._sequence_item import SequenceItem
 from ._sequence_item_addition import SequenceItemAddition
 from ._sequence_item_deletion import SequenceItemDeletion
-from ._sequence_item_index_changed import SequenceItemIndexChanged
-from ._sequence_item_value_changed import SequenceItemValueChanged
+from ._sequence_item_modification import SequenceItemModification

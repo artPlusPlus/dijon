@@ -24,3 +24,11 @@ class Sequence(DataNode):
 
     def append(self, item):
         self._items.append(item)
+        item.parent = self
+
+    def insert(self, index, item):
+        self._items.insert(index, item)
+        item.parent = self
+
+    def __len__(self):
+        return len(self._items)
