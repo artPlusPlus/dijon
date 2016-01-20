@@ -26,9 +26,6 @@ def compare(source_data, target_data):
     target = Graph()
     target.parse(target_data)
 
-    source = source
-    target = target
-
     try:
         result.root = _compare_object(source.root, target.root)
     except ComparisonError:
@@ -156,79 +153,6 @@ def _compare_sequence(source, target, match_threshold=0.1):
         result.append(diff)
 
     return result
-
-
-# def _compare_sequence_old(diffs, path, source, target, match_threshold=0.1):
-#     if isinstance(source, basestring):
-#         raise TypeError('Unsupported source type: basestring')
-#     elif isinstance(target, basestring):
-#         raise TypeError('Unsupported target type: basestring')
-#
-#     match_data = _compute_sequence_item_matches(source, target)
-#     matched_src_indices = []
-#     matched_tgt_indices = []
-#
-#     for src_idx, tgt_idx, match_hits, match_misses in match_data:
-#         src_path = path[:]
-#         src_path.append(src_idx)
-#         src_item = source[src_idx]
-#
-#         tgt_path = path[:]
-#         tgt_path.append(tgt_idx)
-#         tgt_item = target[tgt_idx]
-#
-#         if match_hits / (match_hits + match_misses) < match_threshold:
-#             diff = SequenceItemDeletion(src_path, src_item)
-#             diffs.append(diff)
-#             diff = SequenceItemAddition(tgt_path, tgt_item)
-#             diffs.append(diff)
-#             continue
-#
-#         if src_idx != tgt_idx:
-#             diff = SequenceItemModification(src_path, src_item, tgt_path, tgt_item)
-#             diffs.append(diff)
-#
-#         try:
-#             _compare_object(diffs, src_path, src_item, tgt_item)
-#         except TypeError:
-#             try:
-#                 _compare_sequence(diffs, src_path, src_item, tgt_item)
-#             except TypeError:
-#                 if src_item != tgt_item:
-#                     # Getting here means the src_item and tgt_item are somewhat equal.
-#                     # However, they are also neither sequences nor objects.
-#                     diff = SequenceItemDeletion(src_path, src_item)
-#                     diffs.append(diff)
-#
-#                     diff = SequenceItemAddition(tgt_path, tgt_item)
-#                     diffs.append(diff)
-#
-#         matched_src_indices.append(src_idx)
-#         matched_tgt_indices.append(tgt_idx)
-#
-#     # Identify item deletions
-#     for src_idx in xrange(0, len(source)):
-#         if src_idx in matched_src_indices:
-#             continue
-#
-#         src_path = path[:]
-#         src_path.append(src_idx)
-#         src_item = source[src_idx]
-#
-#         diff = SequenceItemDeletion(src_path, src_item)
-#         diffs.append(diff)
-#
-#     # Identify item additions
-#     for tgt_idx in xrange(0, len(target)):
-#         if tgt_idx in matched_tgt_indices:
-#             continue
-#
-#         tgt_path = path[:]
-#         tgt_path.append(tgt_idx)
-#         tgt_item = target[tgt_idx]
-#
-#         diff = SequenceItemAddition(tgt_path, tgt_item)
-#         diffs.append(diff)
 
 
 def _compute_sequence_item_matches(source_sequence, target_sequence):
