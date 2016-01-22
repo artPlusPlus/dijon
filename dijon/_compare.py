@@ -64,19 +64,28 @@ def _compare_object(source, target):
             result[tgt_field.path] = result_field
 
     for src_field, tgt_field in field_pairs:
-        result_field = _nodes.ObjectField(tgt_field.path, tgt_field.data)
         try:
-            result_field.value = _compare_object(src_field, tgt_field)
+            result_value = _compare_object(src_field, tgt_field)
         except ComparisonError:
             try:
-                result_field.value = _compare_sequence(src_field, tgt_field)
+                result_value = _compare_sequence(src_field, tgt_field)
             except TypeError:
-                if src_field.value == tgt_field.value:
-                    result_field.value = tgt_field.value
-                else:
-                    src_field = src_field.copy()
-                    tgt_field = tgt_field.copy()
-                    result_field = _nodes.ObjectFieldModification(src_field, tgt_field)
+                result_value = tgt_field.value
+
+        try:
+            modified = [isinstance(n, _nodes.DifferenceNode) for n in result_value]
+            modified = any(modified)
+        except TypeError:
+            modified = src_field.value != tgt_field.value
+
+        if modified:
+            src_field = src_field.copy()
+            tgt_field = tgt_field.copy()
+            result_field = _nodes.ObjectFieldModification(src_field, tgt_field)
+        else:
+            result_field = _nodes.ObjectField(tgt_field.path, tgt_field.data)
+
+        result_field.value = result_value
         result[result_field.path] = result_field
 
     return result
@@ -96,8 +105,8 @@ def _compare_sequence(source, target, match_threshold=0.1):
 
     # Handle modified Items
     for src_idx, tgt_idx, match_hits, match_misses in match_data:
-        src_item = source[src_idx].copy()
-        tgt_item = target[tgt_idx].copy()
+        src_item = source[src_idx]
+        tgt_item = target[tgt_idx]
 
         # Discard the match if average hits is below threshold
         if match_hits / (match_hits + match_misses) < match_threshold:
@@ -129,6 +138,8 @@ def _compare_sequence(source, target, match_threshold=0.1):
                 modified = src_item.value != tgt_item.value
 
         if modified:
+            src_item = src_item.copy()
+            tgt_item = tgt_item.copy()
             result_item = _nodes.SequenceItemModification(src_item, tgt_item)
         else:
             result_item = _nodes.SequenceItem(tgt_item.path, tgt_item.data)
