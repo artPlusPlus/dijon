@@ -6,6 +6,10 @@ class ComparisonError(Exception):
     pass
 
 
+class MergeError(Exception):
+    pass
+
+
 class ObjectFieldError(DijonError, KeyError):
     pass
 
