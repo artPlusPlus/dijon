@@ -6,6 +6,9 @@ except ImportError:
         def emit(self, record):
             pass
 
+logging.getLogger(__name__).addHandler(NullHandler())
+
+
 from ._graph import Graph
 
 from ._nodes import (
@@ -18,6 +21,3 @@ from ._nodes import (
 )
 
 from ._compare import compare
-
-
-logging.getLogger(__name__).addHandler(NullHandler())
