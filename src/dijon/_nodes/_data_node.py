@@ -15,7 +15,5 @@ class DataNode(Node):
 
     def __repr__(self):
         result = u"<{0} {{'path': {1}, 'data': {2}}}>"
-        result = result.format(self.__class__.__name__,
-                               self._repr_path(),
-                               repr(self.data))
+        result = result.format(self.__class__.__name__, self._repr_path(), repr(self.data))
         return result

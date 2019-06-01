@@ -3,10 +3,7 @@ from ._node import Node
 
 class DifferenceNode(Node):
     def __init__(self, source, target):
-        path = (
-            source.path if source else None,
-            target.path if target else None
-        )
+        path = (source.path if source else None, target.path if target else None)
         super(DifferenceNode, self).__init__(path)
 
         self.source = source
@@ -25,8 +22,7 @@ class DifferenceNode(Node):
 
     def __repr__(self):
         result = u"<{0} {{'path': {1}, 'source': {2}, 'target': {3}}}>"
-        result = result.format(self.__class__.__name__,
-                               self._repr_path(),
-                               repr(self.source),
-                               repr(self.target))
+        result = result.format(
+            self.__class__.__name__, self._repr_path(), repr(self.source), repr(self.target)
+        )
         return result

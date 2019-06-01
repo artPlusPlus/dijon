@@ -38,12 +38,11 @@ class Node(object):
         self._path = path
 
     def __iter__(self):
-        raise TypeError('Node is not iterable')
+        raise TypeError("Node is not iterable")
 
     def __repr__(self):
         result = "<{0} {{'path': {1}}}>"
-        result = result.format(self.__class__.__name__,
-                               self._repr_path())
+        result = result.format(self.__class__.__name__, self._repr_path())
         return result
 
     def _repr_path(self):
@@ -51,10 +50,10 @@ class Node(object):
 
         for item in self.full_path:
             if isinstance(item, (list, tuple, set)):
-                item = u'|'.join([str(i) for i in item])
-                item = u'[{0}]'.format(item)
+                item = "|".join([str(i) for i in item])
+                item = "[{0}]".format(item)
             result.append(item)
 
-        result = u'.'.join([unicode(r) for r in result])
+        result = ".".join([str(r) for r in result])
 
         return result

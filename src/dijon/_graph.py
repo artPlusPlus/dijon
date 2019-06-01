@@ -1,7 +1,7 @@
 import logging
 from collections import deque
 
-import _nodes
+from . import _nodes
 
 
 _logger = logging.getLogger(__name__)
@@ -12,14 +12,14 @@ class Graph(object):
         self.root = None
 
     def parse(self, json_data):
-        _logger.debug('begin parse')
+        _logger.debug("begin parse")
 
         try:
-            self.root = self._parse_object('root', json_data)
+            self.root = self._parse_object("root", json_data)
         except TypeError:
-            self.root = self._parse_sequence('root', json_data)
+            self.root = self._parse_sequence("root", json_data)
 
-        _logger.debug('end parse')
+        _logger.debug("end parse")
 
         return self.root
 
@@ -44,8 +44,8 @@ class Graph(object):
 
     @staticmethod
     def _parse_sequence(path, data):
-        if isinstance(data, basestring):
-            raise TypeError('Unsupported data type: basestring')
+        if isinstance(data, str):
+            raise TypeError("Unsupported data type: basestring")
 
         result = _nodes.Sequence(path, data)
 

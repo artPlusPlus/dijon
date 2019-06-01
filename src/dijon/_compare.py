@@ -1,6 +1,6 @@
 import logging
 
-import _nodes
+from . import _nodes
 from ._graph import Graph
 from ._exceptions import ComparisonError
 
@@ -16,7 +16,7 @@ def compare(source_data, target_data):
     :param target_data: The "right" side of the comparison
     :return: Returns a graph
     """
-    _logger.debug('begin compare')
+    _logger.debug("begin compare")
 
     result = Graph()
 
@@ -31,20 +31,20 @@ def compare(source_data, target_data):
     except ComparisonError:
         result.root = _compare_sequence(source.root, target.root)
 
-    _logger.debug('end compare')
+    _logger.debug("end compare")
     return result
 
 
 def _compare_object(source, target):
-    result = _nodes.Object(target.path, target.data)
-    field_pairs = set()
-
     try:
         all_fields = set()
         all_fields.update(source.keys())
         all_fields.update(target.keys())
     except AttributeError:
         raise ComparisonError()
+
+    result = _nodes.Object(target.path, target.data)
+    field_pairs = set()
 
     for field_name in all_fields:
         src_field = source.get(field_name, None)
@@ -92,10 +92,10 @@ def _compare_object(source, target):
 
 
 def _compare_sequence(source, target, match_threshold=0.1):
-    if isinstance(source, basestring):
-        raise TypeError('Unsupported source type: basestring')
-    elif isinstance(target, basestring):
-        raise TypeError('Unsupported target type: basestring')
+    if isinstance(source, str):
+        raise TypeError("Unsupported source type: basestring")
+    elif isinstance(target, str):
+        raise TypeError("Unsupported target type: basestring")
 
     result = _nodes.Sequence(target.path, target.data)
 
@@ -148,7 +148,7 @@ def _compare_sequence(source, target, match_threshold=0.1):
         result.append(result_item)
 
     # Handle deleted Items
-    for src_idx in xrange(0, len(source)):
+    for src_idx in range(0, len(source)):
         if src_idx in matched_src_indices:
             continue
 
@@ -156,7 +156,7 @@ def _compare_sequence(source, target, match_threshold=0.1):
         result.append(diff)
 
     # Handle added Items
-    for tgt_idx in xrange(0, len(target)):
+    for tgt_idx in range(0, len(target)):
         if tgt_idx in matched_tgt_indices:
             continue
 
@@ -185,8 +185,7 @@ def _compute_sequence_item_matches(source_sequence, target_sequence):
     # target sequence.
     match_candidates = {}
     for src_idx, src_item in enumerate(source_sequence):
-        tgt_candidates = _compute_sequence_item_match_candidates(
-                src_item, target_sequence)
+        tgt_candidates = _compute_sequence_item_match_candidates(src_item, target_sequence)
         match_candidates[src_idx] = tgt_candidates
 
     # Compute the best target item match for each source item.
@@ -197,7 +196,7 @@ def _compute_sequence_item_matches(source_sequence, target_sequence):
     while len(matches) < num_matches and match_candidates:
         # Each iteration pops the top-scoring target item for each source item.
         round_picks = []
-        for src_idx, tgt_candidates in match_candidates.iteritems():
+        for src_idx, tgt_candidates in match_candidates.items():
             round_pick = tgt_candidates.pop(0)
             round_picks.append((round_pick.score, src_idx, round_pick))
 
@@ -219,6 +218,8 @@ def _compute_sequence_item_matches(source_sequence, target_sequence):
 
     for src_idx, match in matches.values():
         result.append((src_idx, match.target_index, match.hits, match.misses))
+
+    result = sorted(result)
 
     return result
 
@@ -278,13 +279,13 @@ def _compute_sequence_score(source, target):
     :param target:
     :return:
     """
-    if isinstance(source, basestring):
-        raise TypeError('Unsupported source type: basestring')
-    elif isinstance(target, basestring):
-        raise TypeError('Unsupported target type: basestring')
+    if isinstance(source, str):
+        raise TypeError("Unsupported source type: basestring")
+    elif isinstance(target, str):
+        raise TypeError("Unsupported target type: basestring")
 
     hits = 0.0
-    misses = abs(len(source)-len(target)) * 2.0
+    misses = abs(len(source) - len(target)) * 2.0
 
     item_matches = _compute_sequence_item_matches(source, target)
 
@@ -315,11 +316,11 @@ def _compute_object_score(source, target):
     try:
         src_keys = source.keys()
     except AttributeError:
-        raise TypeError('Unsupported source type: {0}'.format(source.__class__))
+        raise TypeError("Unsupported source type: {0}".format(source.__class__))
     try:
         tgt_keys = target.keys()
     except AttributeError:
-        raise TypeError('Unsupported target type: {0}'.format(target.__class__))
+        raise TypeError("Unsupported target type: {0}".format(target.__class__))
 
     common_keys = set(src_keys).intersection(tgt_keys)
     missing_source_keys = set(tgt_keys).difference(src_keys)
