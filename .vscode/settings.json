@@ -1,0 +1,8 @@
+{
+    "python.pythonPath": "C:\\Users\\mrobi\\AppData\\Local\\pypoetry\\Cache\\virtualenvs\\dijon-py3.7\\Scripts\\python.exe",
+    "editor.formatOnSave": true,
+    "python.testing.pyTestEnabled": true,
+    "python.linting.mypyEnabled": true,
+    "python.linting.pylamaEnabled": true,
+    "python.formatting.provider": "black"
+}
