@@ -1,4 +1,5 @@
 import logging
+from collections import defaultdict
 
 import _nodes
 from ._compare import compare
@@ -9,7 +10,7 @@ from ._exceptions import MergeError
 _logger = logging.getLogger(__name__)
 
 
-def merge(source_data, target_data, common_data):
+def merge(ancestor_data, source_data, target_data):
     """
     Merges changes between a source, target, and a common ancestor.
 
@@ -18,41 +19,45 @@ def merge(source_data, target_data, common_data):
     :param common:
     :return:
     """
-    _logger.debug('begin compare')
+    _logger.debug("begin compare")
 
     result = Graph()
 
-    source_common = compare(source_data, common_data)
-    target_common = compare(target_data, common_data)
+    ancestor_source = compare(ancestor_data, source_data)
+    ancestor_target = compare(ancestor_data, target_data)
+
+    if type(ancestor_source.root) is not type(ancestor_target):
+        result.root = _nodes.ConflictNode(ancestor_source.root, ancestor_target.root)
+    elif isinstance(ancestor_source.root, _nodes.Object):
+        result.root = _merge_object(ancestor_source.root, ancestor_target.root)
+    elif isinstance(ancestor_data.root, _nodes.Sequence):
+        result.root = _merge_sequence(ancestor_source.root, ancestor_target.root)
+    else:
+        raise MergeError()
 
     try:
-        result.root = _merge_object(source_common.root, target_common.root)
+        result.root = _merge_object(ancestor_source, ancestor_target)
     except MergeError:
-        result.root = _merge_sequence(source_common.root, target_common.root)
+        result.root = _merge_sequence(ancestor_source, ancestor_target)
 
-    _logger.debug('end compare')
+    _logger.debug("end compare")
     return result
 
 
-def _merge_object(source, target):
-    result = _nodes.Object(target.path, target.data)
-    field_pairs = set()
+def _merge_object(ancestor_source, ancestor_target):
+    result = _nodes.Object()
+    
+    all_fields = defaultdict(set)
+    
+    for field in ancestor_source.fields:
+        
 
     try:
         all_fields = set()
-        all_fields.update(source.keys())
-        all_fields.update(target.keys())
+        all_fields.update(ancestor_source.fields)
+        all_fields.update(ancestor_target.fields)
     except AttributeError:
-        raise MergeError
-
-    for field_name in all_fields:
-
-
-    if conflict:
-        result = _nodes.ConflictNode(source, target)
-
-
-
+        raise MergeError()
 
     return result
 
